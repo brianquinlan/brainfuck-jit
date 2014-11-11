@@ -22,36 +22,20 @@ typedef void(*BrainfuckFunction)(bool (write)(void *, char c),
 // 3.2  Function Calling Sequence
 // 3.2.3 Parameter Passing
 // http://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf
-const char PREFIX[] =
-// enter:
-    // Push the call arguments onto the stack so they can be restored at
-    // the end of our function and so we can reuse these registers for
-    // other purposes.
-    "\x55"                      // push   %rbp  # Belong to the caller
-    "\x57"                      // push   %rdi  # 1st arg: write function
-    "\x56"                      // push   %rsi  # 2nd arg: write function arg 1
-    "\x52"                      // push   %rdx  # 3rd arg: read function
-    "\x51"                      // push   %rcx  # 4th arg: read function arg 1
-    "\x41\x50"                  // push   %r8   # 5th arg: pointer to BF memory
+const char START[] =
+    // XXX
+    "\x55"                      // push   %rbp  # Belongs to the caller
     // Move the call arguments into callee-saved registers so the read and write
     // function can be called without having to worry about them.
     "\x49\x89\xfc"              // mov    %rdi,%r12  # write function => r12
     "\x49\x89\xf5"              // mov    %rsi,%r13  # write arg 1 =>  r13
     "\x49\x89\xd6"              // mov    %rdx,%r14  # read function => r14
     "\x48\x89\xcd"              // mov    %rcx,%rbp  # read arg 1 => r15
-    "\x4c\x89\xc3"              // mov    %r8,%rbx   # BF memory => rbx
-    // 
-    "\xeb\x08"                  // jmp    <start>  # Do a relative jump to the actual code.
-// exit:
-    "\x41\x58"                  // pop    %r8
-    "\x59"                      // pop    %rcx
-    "\x5a"                      // pop    %rdx
-    "\x5e"                      // pop    %rsi
-    "\x5f"                      // pop    %rdi
+    "\x4c\x89\xc3";             // mov    %r8,%rbx   # BF memory => rbx
+
+const char EXIT[] = 
     "\x5d"                      // pop    %rbp
     "\xc3";                     // retq
-
-const int EXIT_OFFSET = 24;
 
 const char LEFT[] =
     "\x48\x83\xeb\x01";         // sub    $0x1,%rbx
@@ -101,25 +85,6 @@ static int bf_read(void*) {
   }
 }
 
-static void add_jne_to_exit(string* code) {
-  int relative_address = EXIT_OFFSET - (code->size() + 6);
-  *code += "\x0f\x85" + string((char *) &relative_address, sizeof(int));
-}
-
-static void add_jl_to_exit(string* code) {
-  int relative_address = EXIT_OFFSET - (code->size() + 6);
-  *code += "\x0f\x8c" + string((char *) &relative_address, sizeof(int));
-}
-
-static void add_jmp_to_offset(int offset, string* code) {
-  int relative_address = offset - (code->size() + 5);
-  *code += "\xe9" + string((char *) &relative_address, sizeof(int));
-}
-
-static void add_jmp_to_exit(string* code) {
-  add_jmp_to_offset(EXIT_OFFSET, code);
-}
-
 static bool find_loop_end(string::const_iterator loop_start,
                           string::const_iterator string_end,
                           string::const_iterator* loop_end) {
@@ -138,11 +103,26 @@ static bool find_loop_end(string::const_iterator loop_start,
   return false;
 }
 
-bool generate_sequence_code(string::const_iterator start,
-                            string::const_iterator end,
-                            string* code);
+void BrainfuckProgram::add_jne_to_exit(string* code) {
+  int relative_address = exit_offset_ - (code->size() + 6);
+  *code += "\x0f\x85" + string((char *) &relative_address, sizeof(int));
+}
 
-bool generate_loop_code(string::const_iterator start,
+void BrainfuckProgram::add_jl_to_exit(string* code) {
+  int relative_address = exit_offset_ - (code->size() + 6);
+  *code += "\x0f\x8c" + string((char *) &relative_address, sizeof(int));
+}
+
+void BrainfuckProgram::add_jmp_to_offset(int offset, string* code) {
+  int relative_address = offset - (code->size() + 5);
+  *code += "\xe9" + string((char *) &relative_address, sizeof(int));
+}
+
+void BrainfuckProgram::add_jmp_to_exit(string* code) {
+  add_jmp_to_offset(exit_offset_, code);
+}
+
+bool BrainfuckProgram::generate_loop_code(string::const_iterator start,
                         string::const_iterator end,
                         string* code) {
   int loop_start = code->size();
@@ -166,34 +146,34 @@ bool generate_loop_code(string::const_iterator start,
   return true;
 }
 
-void generate_left_code(string* code) {
+void BrainfuckProgram::generate_left_code(string* code) {
   *code += string(LEFT, sizeof(LEFT) - 1);
 }
 
-void generate_right_code(string* code) {
+void BrainfuckProgram::generate_right_code(string* code) {
   *code += string(RIGHT, sizeof(RIGHT) - 1);
 }
 
-void generate_subtract_code(string* code) {
+void BrainfuckProgram::generate_subtract_code(string* code) {
   *code += string(SUBTRACT, sizeof(SUBTRACT) - 1);
 }
 
-void generate_add_code(string* code) {
+void BrainfuckProgram::generate_add_code(string* code) {
   *code += string(ADD, sizeof(ADD) - 1);
 }
 
-void generate_read_code(string* code) {
+void BrainfuckProgram::generate_read_code(string* code) {
   *code += string(READ, sizeof(READ) - 1);
   add_jl_to_exit(code);
   *code += string(READ_STORE, sizeof(READ_STORE) - 1);
 }
 
-void generate_write_code(string* code) {
+void BrainfuckProgram::generate_write_code(string* code) {
   *code += string(WRITE, sizeof(WRITE) - 1);
   add_jne_to_exit(code);
 }
 
-bool generate_sequence_code(string::const_iterator start,
+bool BrainfuckProgram::generate_sequence_code(string::const_iterator start,
                             string::const_iterator end,
                             string* code) {
   for (string::const_iterator it=start; it != end; ++it) {
@@ -236,7 +216,12 @@ bool generate_sequence_code(string::const_iterator start,
 BrainfuckProgram::BrainfuckProgram() : executable_(NULL) {}
 
 bool BrainfuckProgram::init(const string& source) {
-  string code(PREFIX);
+  string code(START);
+  code += "\xeb";  // relative jump;
+  code += strlen(EXIT);
+  exit_offset_ = code.size();
+  code += EXIT;
+
   if (!generate_sequence_code(source.begin(), source.end(), &code)) {
     return false;
   }
