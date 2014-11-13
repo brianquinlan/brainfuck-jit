@@ -1,14 +1,19 @@
+// References:
+// http://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf
+// http://ref.x86asm.net/
+// Online assembler:
+// https://defuse.ca/online-x86-assembler.htm
+
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <errno.h>
 #include <sys/mman.h>
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
 
+#include <cstdint>
 #include <string>
-
 
 #include "bf_jit.h"
 
@@ -18,62 +23,84 @@ typedef void(*BrainfuckFunction)(bool (write)(void *, char c),
                                  void* read_arg,
                                  void* memory);
 
+// This is the main entry point for the implementation of "BrainfuckFunction".
+// It expects it's arguments to be passed as specified in:
 // http://www.x86-64.org/documentation/abi.pdf
-// 3.2  Function Calling Sequence
-// 3.2.3 Parameter Passing
-// http://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf
+// - 3.2  Function Calling Sequence
+// - 3.2.3 Parameter Passing
 const char START[] =
-    // XXX
-    "\x55"                      // push   %rbp  # Belongs to the caller
-    // Move the call arguments into callee-saved registers so the read and write
-    // function can be called without having to worry about them.
-    "\x49\x89\xfc"              // mov    %rdi,%r12  # write function => r12
-    "\x49\x89\xf5"              // mov    %rsi,%r13  # write arg 1 =>  r13
-    "\x49\x89\xd6"              // mov    %rdx,%r14  # read function => r14
-    "\x48\x89\xcd"              // mov    %rcx,%rbp  # read arg 1 => r15
-    "\x4c\x89\xc3";             // mov    %r8,%rbx   # BF memory => rbx
+  // Some registers must be saved by the called function (the callee) and
+  // restored on exit if they are changed. Using these registers is
+  // convenient because it allows us to call the provided "write" and "read"
+  // functions without worrying about our registers being changed.
+  // See:
+  // http://www.x86-64.org/documentation/abi.pdf "Figure 3.4: Register Usage"
+  "\x41\x54"              // push   %r12  # r12 will store the "write" arg
+  "\x41\x55"              // push   %r13  # r13 will store the "write_arg" arg
+  "\x41\x56"              // push   %r14  # r14 will store the "read" arg
+  "\x55"                  // push   %rbp  # rbp will store the "read_arg" arg
+  "\x53"                  // push   %rbx  # rbx will store the "memory" arg
+  
+  // Store the passed arguments into a callee-saved register.
+  "\x49\x89\xfc"          // mov    %rdi,%r12  # write function => r12
+  "\x49\x89\xf5"          // mov    %rsi,%r13  # write arg 1 =>  r13
+  "\x49\x89\xd6"          // mov    %rdx,%r14  # read function => r14
+  "\x48\x89\xcd"          // mov    %rcx,%rbp  # read arg 1 => rbp
+  "\x4c\x89\xc3";         // mov    %r8,%rbx   # BF memory => rbx
 
 const char EXIT[] = 
-    "\x5d"                      // pop    %rbp
-    "\xc3";                     // retq
+  "\x5b"                  // pop    %rbx
+  "\x5d"                  // pop    %rbp
+  "\x41\x5e"              // pop    %r14
+  "\x41\x5d"              // pop    %r13
+  "\x41\x5c"              // pop    %r12
+  "\xc3";                 // retq
 
-const char LEFT[] =
-    "\x48\x83\xeb\x01";         // sub    $0x1,%rbx
+// < --rbx;
+const char LEFT[] = 
+  "\x48\x83\xeb\x01";     // sub    $0x1,%rbx
 
+// > ++rbx;
 const char RIGHT[] =
-    "\x48\x83\xc3\x01";         // add    $0x1,%rbx
+  "\x48\x83\xc3\x01";     // add    $0x1,%rbx
 
+// - *rbx -= 1;
 const char SUBTRACT[] =
-    "\x8a\x03"                  // mov    (%rbx),%al
-    "\x2c\x01"                  // sub    $0x1,%al
-    "\x88\x03";                 // mov    %al,(%rbx)
+  "\x8a\x03"              // mov    (%rbx),%al
+  "\x2c\x01"              // sub    $0x1,%al
+  "\x88\x03";             // mov    %al,(%rbx)
 
+// + *rbx += 1;
 const char ADD[] =
-    "\x8a\x03"                  // mov    (%rbx),%al
-    "\x04\x01"                  // add    $0x1,%al
-    "\x88\x03";                 // mov    %al,(%rbx)
+  "\x8a\x03"              // mov    (%rbx),%al
+  "\x04\x01"              // add    $0x1,%al
+  "\x88\x03";             // mov    %al,(%rbx)
 
+// , [part1] rax = read(rdp); if (rax == 0) goto exit; ...
 const char READ[] =
-    "\x48\x89\xef"              // mov    %rbp,%rdi
-    "\x41\xff\xd6"              // callq  *%r14
-    "\x48\x83\xf8\x00";         // cmp    $0x0,%rax
-    // jl exit
-const char READ_STORE[] =
-    "\x48\x89\x03";             // mov    %rax,(%rbx)
+  "\x48\x89\xef"          // mov    %rbp,%rdi
+  "\x41\xff\xd6"          // callq  *%r14
+  "\x48\x83\xf8\x00";     // cmp    $0x0,%rax
+  // <inserted by code>   // jl     exit
 
+// , [part2] ... *rbx = rax;
+const char READ_STORE[] =
+  "\x48\x89\x03";         // mov    %rax,(%rbx)
+
+// . rax = write(r13, rbx); if (rax != 1) goto exit;
 const char WRITE[] =
-    "\x4c\x89\xef"              // mov    %r13,%rdi
-    "\x48\x0f\xb6\x33"          // movzbq (%rbx),%rsi
-    "\x41\xff\xd4"              // callq  *%r12
-    "\x48\x83\xf8\x01";         // cmp    $0x1,%rax
+  "\x4c\x89\xef"          // mov    %r13,%rdi
+  "\x48\x0f\xb6\x33"      // movzbq (%rbx),%rsi
+  "\x41\xff\xd4"          // callq  *%r12
+  "\x48\x83\xf8\x01";     // cmp    $0x1,%rax
+  // <inserted by code>   // jne    exit
 
 char LOOP_CMP[] =
-  "\x80\x3b\x00";                // cmpb   $0x0,(%rbx)
+  "\x80\x3b\x00";         // cmpb   $0x0,(%rbx)
 
 
 static bool bf_write(void*, char c) {
-  putchar(c);
-  return true;
+  return putchar(c) != EOF;
 };
 
 static int bf_read(void*) {
@@ -104,18 +131,21 @@ static bool find_loop_end(string::const_iterator loop_start,
 }
 
 void BrainfuckProgram::add_jne_to_exit(string* code) {
-  int relative_address = exit_offset_ - (code->size() + 6);
-  *code += "\x0f\x85" + string((char *) &relative_address, sizeof(int));
+  *code += "\x0f\x85";                                        // jne ...
+  uint32_t relative_address = exit_offset_ - (code->size() + 4);
+  *code +=  string((char *) &relative_address, 4);            // ... exit
 }
 
 void BrainfuckProgram::add_jl_to_exit(string* code) {
-  int relative_address = exit_offset_ - (code->size() + 6);
-  *code += "\x0f\x8c" + string((char *) &relative_address, sizeof(int));
+  *code += "\x0f\x8c";                                        // jl ...
+  uint32_t relative_address = exit_offset_ - (code->size() + 4);
+  *code += string((char *) &relative_address, 4);             // ... exit
 }
 
 void BrainfuckProgram::add_jmp_to_offset(int offset, string* code) {
-  int relative_address = offset - (code->size() + 5);
-  *code += "\xe9" + string((char *) &relative_address, sizeof(int));
+  *code += "\xe9";                                            // jmp ...
+  uint32_t relative_address = offset - (code->size() + 4);
+  *code += string((char *) &relative_address, 4);             // ... exit
 }
 
 void BrainfuckProgram::add_jmp_to_exit(string* code) {
@@ -123,26 +153,37 @@ void BrainfuckProgram::add_jmp_to_exit(string* code) {
 }
 
 bool BrainfuckProgram::generate_loop_code(string::const_iterator start,
-                        string::const_iterator end,
-                        string* code) {
+                                          string::const_iterator end,
+                                          string* code) {
+  // Converts a Brainfuck instruction sequence like this:
+  // [<code>]
+  // Into this:
+  // loop_start:
+  //   cmpb   $0x0,(%rbx)
+  //   je     loop_end
+  //   <code>
+  //   jmp    loop_start
+  // loop_end:
+  // 
+
   int loop_start = code->size();
   *code += string(LOOP_CMP, sizeof(LOOP_CMP) - 1);
 
   int jump_start = code->size();
-  // Reserve 6 bytes for je.
-  *code += string("\xde\xad\xbe\xef\xde\xad");
+  *code += string("\xde\xad\xbe\xef\xde\xad"); // Reserve 6 bytes for je.
 
   if (!generate_sequence_code(start+1, end, code)) {
     return false;
   }
 
   add_jmp_to_offset(loop_start, code);  // Jump back to the start of the loop.
-  int relative_end_of_loop = code->size() - (jump_start + 6);
 
-  string jump_to_end = "\x0f\x84" + string((char *) &relative_end_of_loop,
-                                           sizeof(int));
+  string jump_to_end = "\x0f\x84";                              // je ...
+  uint32_t relative_end_of_loop = code->size() - 
+      (jump_start + jump_to_end.size() + 4);
+  jump_to_end += string((char *) &relative_end_of_loop, 4);     // ... loop_end
+
   code->replace(jump_start, jump_to_end.size(), jump_to_end);
-
   return true;
 }
 
@@ -199,7 +240,10 @@ bool BrainfuckProgram::generate_sequence_code(string::const_iterator start,
       case '[':
         string::const_iterator loop_end;
         if (!find_loop_end(it, end, &loop_end)) {
-          fprintf(stderr, "Unable to find loop end in block starting with: %s\n", string(it, end).c_str());
+          fprintf(
+              stderr,
+              "Unable to find loop end in block starting with: %s\n",
+              string(it, end).c_str());
           return false;
         }
         if (!generate_loop_code(it, loop_end, code)) {
@@ -216,11 +260,11 @@ bool BrainfuckProgram::generate_sequence_code(string::const_iterator start,
 BrainfuckProgram::BrainfuckProgram() : executable_(NULL) {}
 
 bool BrainfuckProgram::init(const string& source) {
-  string code(START);
+  string code(START, sizeof(START) - 1);
   code += "\xeb";  // relative jump;
-  code += strlen(EXIT);
+  code += sizeof(EXIT) - 1;
   exit_offset_ = code.size();
-  code += EXIT;
+  code += string(EXIT, sizeof(EXIT) - 1);
 
   if (!generate_sequence_code(source.begin(), source.end(), &code)) {
     return false;
