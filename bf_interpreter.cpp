@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <stack>
 
 #include "bf_interpreter.h"
