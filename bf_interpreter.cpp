@@ -49,7 +49,7 @@ static int bf_read() {
 }
 
 void BrainfuckInterpreter::run(void* memory) {
-  char* byte_memory = (char *) memory;
+  uint8_t* byte_memory = (uint8_t *) memory;
   stack<string::const_iterator> return_stack;
 
   for (string::const_iterator it=start_; it != end_;) {

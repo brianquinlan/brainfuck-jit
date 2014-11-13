@@ -1,6 +1,7 @@
 #ifndef BF_INTERPRETER
 #define BF_INTERPRETER
 
+#include <cstdint>
 #include <map>
 #include <string>
 
