@@ -7,7 +7,8 @@ using std::string;
 
 class BrainfuckRunner {
  public:
-  virtual bool init(const string& source) = 0;
+  virtual bool init(string::const_iterator start,
+                    string::const_iterator end) = 0;
   virtual void run(void* memory) = 0;
 };
 

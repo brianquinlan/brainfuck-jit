@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <string>
 
-#include "bf_jit.h"
+#include "bf_compile_and_go.h"
 
 typedef void(*BrainfuckFunction)(bool (write)(void *, char c),
                                  void* write_arg,
@@ -130,31 +130,31 @@ static bool find_loop_end(string::const_iterator loop_start,
   return false;
 }
 
-void BrainfuckProgram::add_jne_to_exit(string* code) {
+void BrainfuckCompileAndGo::add_jne_to_exit(string* code) {
   *code += "\x0f\x85";                                        // jne ...
   uint32_t relative_address = exit_offset_ - (code->size() + 4);
   *code +=  string((char *) &relative_address, 4);            // ... exit
 }
 
-void BrainfuckProgram::add_jl_to_exit(string* code) {
+void BrainfuckCompileAndGo::add_jl_to_exit(string* code) {
   *code += "\x0f\x8c";                                        // jl ...
   uint32_t relative_address = exit_offset_ - (code->size() + 4);
   *code += string((char *) &relative_address, 4);             // ... exit
 }
 
-void BrainfuckProgram::add_jmp_to_offset(int offset, string* code) {
+void BrainfuckCompileAndGo::add_jmp_to_offset(int offset, string* code) {
   *code += "\xe9";                                            // jmp ...
   uint32_t relative_address = offset - (code->size() + 4);
   *code += string((char *) &relative_address, 4);             // ... exit
 }
 
-void BrainfuckProgram::add_jmp_to_exit(string* code) {
+void BrainfuckCompileAndGo::add_jmp_to_exit(string* code) {
   add_jmp_to_offset(exit_offset_, code);
 }
 
-bool BrainfuckProgram::generate_loop_code(string::const_iterator start,
-                                          string::const_iterator end,
-                                          string* code) {
+bool BrainfuckCompileAndGo::generate_loop_code(string::const_iterator start,
+                                               string::const_iterator end,
+                                               string* code) {
   // Converts a Brainfuck instruction sequence like this:
   // [<code>]
   // Into this:
@@ -187,36 +187,36 @@ bool BrainfuckProgram::generate_loop_code(string::const_iterator start,
   return true;
 }
 
-void BrainfuckProgram::generate_left_code(string* code) {
+void BrainfuckCompileAndGo::generate_left_code(string* code) {
   *code += string(LEFT, sizeof(LEFT) - 1);
 }
 
-void BrainfuckProgram::generate_right_code(string* code) {
+void BrainfuckCompileAndGo::generate_right_code(string* code) {
   *code += string(RIGHT, sizeof(RIGHT) - 1);
 }
 
-void BrainfuckProgram::generate_subtract_code(string* code) {
+void BrainfuckCompileAndGo::generate_subtract_code(string* code) {
   *code += string(SUBTRACT, sizeof(SUBTRACT) - 1);
 }
 
-void BrainfuckProgram::generate_add_code(string* code) {
+void BrainfuckCompileAndGo::generate_add_code(string* code) {
   *code += string(ADD, sizeof(ADD) - 1);
 }
 
-void BrainfuckProgram::generate_read_code(string* code) {
+void BrainfuckCompileAndGo::generate_read_code(string* code) {
   *code += string(READ, sizeof(READ) - 1);
   add_jl_to_exit(code);
   *code += string(READ_STORE, sizeof(READ_STORE) - 1);
 }
 
-void BrainfuckProgram::generate_write_code(string* code) {
+void BrainfuckCompileAndGo::generate_write_code(string* code) {
   *code += string(WRITE, sizeof(WRITE) - 1);
   add_jne_to_exit(code);
 }
 
-bool BrainfuckProgram::generate_sequence_code(string::const_iterator start,
-                            string::const_iterator end,
-                            string* code) {
+bool BrainfuckCompileAndGo::generate_sequence_code(string::const_iterator start,
+                                                   string::const_iterator end,
+                                                   string* code) {
   for (string::const_iterator it=start; it != end; ++it) {
     switch (*it) {
       case '<':
@@ -257,26 +257,27 @@ bool BrainfuckProgram::generate_sequence_code(string::const_iterator start,
 }
 
 
-BrainfuckProgram::BrainfuckProgram() : executable_(NULL) {}
+BrainfuckCompileAndGo::BrainfuckCompileAndGo() : executable_(NULL) {}
 
-bool BrainfuckProgram::init(const string& source) {
+bool BrainfuckCompileAndGo::init(string::const_iterator start,
+                                 string::const_iterator end) {
   string code(START, sizeof(START) - 1);
   code += "\xeb";  // relative jump;
   code += sizeof(EXIT) - 1;
   exit_offset_ = code.size();
   code += string(EXIT, sizeof(EXIT) - 1);
 
-  if (!generate_sequence_code(source.begin(), source.end(), &code)) {
+  if (!generate_sequence_code(start, end, &code)) {
     return false;
   }
   add_jmp_to_exit(&code);
 
-  int required_memory = (code.size() /
-                         sysconf(_SC_PAGESIZE) + 1) * sysconf(_SC_PAGESIZE);
+  executable_size_ = (code.size() /
+                      sysconf(_SC_PAGESIZE) + 1) * sysconf(_SC_PAGESIZE);
 
   executable_ = mmap(
       NULL,
-      required_memory,
+      executable_size_,
       PROT_READ | PROT_WRITE,
       MAP_PRIVATE|MAP_ANON, -1, 0);
   if (executable_ == NULL) {
@@ -285,7 +286,7 @@ bool BrainfuckProgram::init(const string& source) {
   }
 
   memmove(executable_, code.data(), code.size());
-  if (mprotect(executable_, required_memory, PROT_EXEC | PROT_READ) != 0) {
+  if (mprotect(executable_, executable_size_, PROT_EXEC | PROT_READ) != 0) {
     fprintf(stderr, "mprotect failed: %s\n", strerror(errno));
     return false;
   }
@@ -293,6 +294,16 @@ bool BrainfuckProgram::init(const string& source) {
   return true;  
 }
 
-void BrainfuckProgram::run(void* memory) {
+void BrainfuckCompileAndGo::run(void* memory) {
   ((BrainfuckFunction)executable_)(&bf_write, NULL, &bf_read, NULL, memory);
 }
+
+BrainfuckCompileAndGo::~BrainfuckCompileAndGo() {
+  if (executable_) {
+    if (munmap(executable_, executable_size_) != 0) {
+      fprintf(stderr, "munmap failed: %s\n", strerror(errno));    
+    }
+  }
+}
+
+
