@@ -7,6 +7,7 @@
 #include "bf_runner.h"
 #include "bf_compile_and_go.h"
 #include "bf_interpreter.h"
+#include "bf_jit.h"
 
 using std::string;
 using std::unique_ptr;
@@ -21,6 +22,11 @@ int main(int argc, char *argv[]) {
       unique_ptr<BrainfuckRunner> compile_and_go(new BrainfuckCompileAndGo());
       bf = std::move(compile_and_go); 
     } else if (mode == "--mode=i") {
+      unique_ptr<BrainfuckRunner> interpreter(new BrainfuckInterpreter());
+      bf = std::move(interpreter); 
+    } else if (mode == "--mode=jit") {
+      unique_ptr<BrainfuckRunner> jit(new BrainfuckJIT());
+      bf = std::move(jit);
     } else {
       fprintf(stderr, "Unexpected mode: %s\n", argv[1]);
       return 1;

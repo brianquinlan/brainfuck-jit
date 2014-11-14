@@ -1,14 +1,14 @@
 #include <cstdint>
 #include <stack>
 
-#include "bf_interpreter.h"
+#include "bf_jit.h"
 
 using std::stack;
 
-BrainfuckInterpreter::BrainfuckInterpreter() {}
+BrainfuckJIT::BrainfuckJIT() {}
 
-bool BrainfuckInterpreter::init(string::const_iterator start,
-                                string::const_iterator end) {
+bool BrainfuckJIT::init(string::const_iterator start,
+                        string::const_iterator end) {
   start_ = start;
   end_ = end;
 
@@ -20,7 +20,7 @@ bool BrainfuckInterpreter::init(string::const_iterator start,
     } else if (*it == ']') {
       if (block_starts.size() != 0) {
         const string::const_iterator &loop_start = block_starts.top();
-        loop_start_to_end_[loop_start] = it+1;
+        loop_start_to_loop_[loop_start] = Loop(it+1);
         block_starts.pop();
       }
     }
@@ -49,7 +49,7 @@ static int bf_read() {
   }
 }
 
-void* BrainfuckInterpreter::run(void* memory) {
+void* BrainfuckJIT::run(void* memory) {
   uint8_t* byte_memory = (uint8_t *) memory;
   stack<string::const_iterator> return_stack;
 
@@ -80,11 +80,32 @@ void* BrainfuckInterpreter::run(void* memory) {
          ++it;
         break;
       case '[':
-        if (*byte_memory) {
-          return_stack.push(it);
-           ++it;
-        } else {
-          it = loop_start_to_end_[it];
+        { 
+          Loop &loop = loop_start_to_loop_[it];
+          ++loop.condition_evaluation_count;
+
+          if (loop.compiled == nullptr && loop.condition_evaluation_count > 20) {
+             shared_ptr<BrainfuckCompileAndGo> compiled(new BrainfuckCompileAndGo());
+             string::const_iterator compilation_end(loop.loop_end);
+
+            if (!compiled->init(it, compilation_end)) {
+              fprintf(stderr,
+                      "Unable to compile code: %s\n",
+                      string(it, compilation_end).c_str());
+            } else {
+              loop.compiled = compiled;
+            }
+          }
+
+          if (loop.compiled) {
+            byte_memory = (uint8_t *) loop.compiled->run(byte_memory);
+            it = loop_start_to_loop_[it].loop_end;
+          } else if (*byte_memory) {
+            return_stack.push(it);
+             ++it;
+          } else {
+            it = loop_start_to_loop_[it].loop_end;
+          }
         }
         break;
       case ']':

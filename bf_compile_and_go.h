@@ -12,7 +12,7 @@ class BrainfuckCompileAndGo : public BrainfuckRunner {
   BrainfuckCompileAndGo();
   virtual bool init(string::const_iterator start,
                     string::const_iterator end);
-  virtual void run(void* memory);
+  virtual void* run(void* memory);
 
   virtual ~BrainfuckCompileAndGo();
  private:

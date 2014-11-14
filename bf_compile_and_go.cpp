@@ -17,7 +17,7 @@
 
 #include "bf_compile_and_go.h"
 
-typedef void(*BrainfuckFunction)(bool (write)(void *, char c),
+typedef void*(*BrainfuckFunction)(bool (write)(void *, char c),
                                  void* write_arg,
                                  int (read)(void *),
                                  void* read_arg,
@@ -35,68 +35,69 @@ const char START[] =
   // functions without worrying about our registers being changed.
   // See:
   // http://www.x86-64.org/documentation/abi.pdf "Figure 3.4: Register Usage"
-  "\x41\x54"              // push   %r12  # r12 will store the "write" arg
-  "\x41\x55"              // push   %r13  # r13 will store the "write_arg" arg
-  "\x41\x56"              // push   %r14  # r14 will store the "read" arg
-  "\x55"                  // push   %rbp  # rbp will store the "read_arg" arg
-  "\x53"                  // push   %rbx  # rbx will store the "memory" arg
+  "\x41\x54"              // push   r12  # r12 will store the "write" arg
+  "\x41\x55"              // push   r13  # r13 will store the "write_arg" arg
+  "\x41\x56"              // push   r14  # r14 will store the "read" arg
+  "\x55"                  // push   rbp  # rbp will store the "read_arg" arg
+  "\x53"                  // push   rbx  # rbx will store the "memory" arg
   
   // Store the passed arguments into a callee-saved register.
-  "\x49\x89\xfc"          // mov    %rdi,%r12  # write function => r12
-  "\x49\x89\xf5"          // mov    %rsi,%r13  # write arg 1 =>  r13
-  "\x49\x89\xd6"          // mov    %rdx,%r14  # read function => r14
-  "\x48\x89\xcd"          // mov    %rcx,%rbp  # read arg 1 => rbp
-  "\x4c\x89\xc3";         // mov    %r8,%rbx   # BF memory => rbx
+  "\x49\x89\xfc"          // mov    r12,rdi   # write function => r12
+  "\x49\x89\xf5"          // mov    r13,rsi   # write arg 1 =>  r13
+  "\x49\x89\xd6"          // mov    r14,rdx   # read function => r14
+  "\x48\x89\xcd"          // mov    rbp,rcx   # read arg 1 => rbp
+  "\x4c\x89\xc3";         // mov    rbx,r8    # BF memory => rbx
 
 const char EXIT[] = 
-  "\x5b"                  // pop    %rbx
-  "\x5d"                  // pop    %rbp
-  "\x41\x5e"              // pop    %r14
-  "\x41\x5d"              // pop    %r13
-  "\x41\x5c"              // pop    %r12
+  "\x48\x89\xd8"          // mov    rbx,rax   # Store return value
+  "\x5b"                  // pop    rbx
+  "\x5d"                  // pop    rbp
+  "\x41\x5e"              // pop    r14
+  "\x41\x5d"              // pop    r13
+  "\x41\x5c"              // pop    r12
   "\xc3";                 // retq
 
 // < --rbx;
 const char LEFT[] = 
-  "\x48\x83\xeb\x01";     // sub    $0x1,%rbx
+  "\x48\x83\xeb\x01";     // sub    rbx,$0x1
 
 // > ++rbx;
 const char RIGHT[] =
-  "\x48\x83\xc3\x01";     // add    $0x1,%rbx
+  "\x48\x83\xc3\x01";     // add    rbx,$0x1
 
 // - *rbx -= 1;
 const char SUBTRACT[] =
-  "\x8a\x03"              // mov    (%rbx),%al
-  "\x2c\x01"              // sub    $0x1,%al
-  "\x88\x03";             // mov    %al,(%rbx)
+  "\x8a\x03"              // mov    al,[rbx]
+  "\x2c\x01"              // sub    al,$0x1
+  "\x88\x03";             // mov    [rbx],al
 
 // + *rbx += 1;
 const char ADD[] =
-  "\x8a\x03"              // mov    (%rbx),%al
-  "\x04\x01"              // add    $0x1,%al
-  "\x88\x03";             // mov    %al,(%rbx)
+  "\x8a\x03"              // mov    al,[rbx]
+  "\x04\x01"              // add    al,$0x1
+  "\x88\x03";             // mov    [rbx],al
 
 // , [part1] rax = read(rdp); if (rax == 0) goto exit; ...
 const char READ[] =
-  "\x48\x89\xef"          // mov    %rbp,%rdi
+  "\x48\x89\xef"          // mov    rdi,rbp,
   "\x41\xff\xd6"          // callq  *%r14
-  "\x48\x83\xf8\x00";     // cmp    $0x0,%rax
+  "\x48\x83\xf8\x00";     // cmp    rax,$0x0
   // <inserted by code>   // jl     exit
 
 // , [part2] ... *rbx = rax;
 const char READ_STORE[] =
-  "\x48\x89\x03";         // mov    %rax,(%rbx)
+  "\x88\x03";         // mov    [rbx],al
 
 // . rax = write(r13, rbx); if (rax != 1) goto exit;
 const char WRITE[] =
-  "\x4c\x89\xef"          // mov    %r13,%rdi
-  "\x48\x0f\xb6\x33"      // movzbq (%rbx),%rsi
+  "\x4c\x89\xef"          // mov    rdi,r13
+  "\x48\x0f\xb6\x33"      // movzbq rsi,[%rbx]
   "\x41\xff\xd4"          // callq  *%r12
-  "\x48\x83\xf8\x01";     // cmp    $0x1,%rax
+  "\x48\x83\xf8\x01";     // cmp    rax,$0x1
   // <inserted by code>   // jne    exit
 
 char LOOP_CMP[] =
-  "\x80\x3b\x00";         // cmpb   $0x0,(%rbx)
+  "\x80\x3b\x00";         // cmpb   rbx,$0x0
 
 
 static bool bf_write(void*, char c) {
@@ -159,7 +160,7 @@ bool BrainfuckCompileAndGo::generate_loop_code(string::const_iterator start,
   // [<code>]
   // Into this:
   // loop_start:
-  //   cmpb   $0x0,(%rbx)
+  //   cmpb   [rbx],$0x0
   //   je     loop_end
   //   <code>
   //   jmp    loop_start
@@ -294,8 +295,8 @@ bool BrainfuckCompileAndGo::init(string::const_iterator start,
   return true;  
 }
 
-void BrainfuckCompileAndGo::run(void* memory) {
-  ((BrainfuckFunction)executable_)(&bf_write, NULL, &bf_read, NULL, memory);
+void* BrainfuckCompileAndGo::run(void* memory) {
+  return ((BrainfuckFunction)executable_)(&bf_write, NULL, &bf_read, NULL, memory);
 }
 
 BrainfuckCompileAndGo::~BrainfuckCompileAndGo() {
