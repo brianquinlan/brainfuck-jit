@@ -280,7 +280,7 @@ bool BrainfuckCompileAndGo::init(string::const_iterator start,
       NULL,
       executable_size_,
       PROT_READ | PROT_WRITE,
-      MAP_PRIVATE|MAP_ANON, -1, 0);
+      MAP_PRIVATE | MAP_ANON, -1, 0);
   if (executable_ == NULL) {
     fprintf(stderr, "Error making memory executable: %s\n", strerror(errno));
     return false;

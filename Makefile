@@ -11,4 +11,3 @@ test: bf_jit64
 
 clean:
 	rm -rf *.o *.pyc bf
-

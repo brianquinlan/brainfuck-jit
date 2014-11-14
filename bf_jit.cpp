@@ -84,9 +84,11 @@ void* BrainfuckJIT::run(void* memory) {
           Loop &loop = loop_start_to_loop_[it];
           ++loop.condition_evaluation_count;
 
-          if (loop.compiled == nullptr && loop.condition_evaluation_count > 20) {
-             shared_ptr<BrainfuckCompileAndGo> compiled(new BrainfuckCompileAndGo());
-             string::const_iterator compilation_end(loop.loop_end);
+          if (loop.compiled == nullptr &&
+              loop.condition_evaluation_count > 20) {
+            shared_ptr<BrainfuckCompileAndGo> compiled(
+              new BrainfuckCompileAndGo());
+            string::const_iterator compilation_end(loop.loop_end);
 
             if (!compiled->init(it, compilation_end)) {
               fprintf(stderr,
@@ -102,7 +104,7 @@ void* BrainfuckJIT::run(void* memory) {
             it = loop_start_to_loop_[it].loop_end;
           } else if (*byte_memory) {
             return_stack.push(it);
-             ++it;
+            ++it;
           } else {
             it = loop_start_to_loop_[it].loop_end;
           }
