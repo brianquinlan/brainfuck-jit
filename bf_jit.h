@@ -26,11 +26,11 @@ class BrainfuckJIT : public BrainfuckRunner {
  private:
   class Loop {
    public:
-   	Loop() : condition_evaluation_count(0) { };
-   	Loop(string::const_iterator end) : loop_end(end),  condition_evaluation_count(0) { };
+    Loop() : condition_evaluation_count(0) { };
+    Loop(string::const_iterator end) : loop_end(end),  condition_evaluation_count(0) { };
 
-  	string::const_iterator loop_end;
-  	uint64_t condition_evaluation_count;
+    string::const_iterator loop_end;
+    uint64_t condition_evaluation_count;
     shared_ptr<BrainfuckCompileAndGo> compiled;
   };
 
