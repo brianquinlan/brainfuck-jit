@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 class BrainfuckRunnerTests(object):
+    executable_path = os.path.join(os.curdir, 'bf')
 
     def run_brainfuck(self, example, stdin=None):
         raise NotImplementedError()
@@ -59,43 +60,43 @@ class BrainfuckRunnerTests(object):
         self.assertEqual(stderr, '')
 
 class TestCompileAndGo(unittest.TestCase, BrainfuckRunnerTests):
-    @staticmethod
-    def run_brainfuck(example, stdin=None):
-        executable_path = os.path.join(os.curdir, 'bf')
+    @classmethod
+    def run_brainfuck(cls, example, stdin=None):
         example_path = os.path.join(os.curdir, 'examples', example)
 
-        run = subprocess.Popen([executable_path, '--mode=cag', example_path],
-                               stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
+        run = subprocess.Popen(
+            [cls.executable_path, '--mode=cag', example_path],
+             stdin=subprocess.PIPE,
+             stdout=subprocess.PIPE,
+             stderr=subprocess.PIPE)
         stdoutdata, stderrdata = run.communicate(stdin)
         return run.returncode, stdoutdata, stderrdata
 
 
 class TestInterpreter(unittest.TestCase, BrainfuckRunnerTests):
-    @staticmethod
-    def run_brainfuck(example, stdin=None):
-        executable_path = os.path.join(os.curdir, 'bf')
+    @classmethod
+    def run_brainfuck(cls, example, stdin=None):
         example_path = os.path.join(os.curdir, 'examples', example)
 
-        run = subprocess.Popen([executable_path, '--mode=i', example_path],
-                               stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
+        run = subprocess.Popen(
+            [cls.executable_path, '--mode=i', example_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
         stdoutdata, stderrdata = run.communicate(stdin)
         return run.returncode, stdoutdata, stderrdata
 
 
 class TestJIT(unittest.TestCase, BrainfuckRunnerTests):
-    @staticmethod
-    def run_brainfuck(example, stdin=None):
-        executable_path = os.path.join(os.curdir, 'bf')
+    @classmethod
+    def run_brainfuck(cls, example, stdin=None):
         example_path = os.path.join(os.curdir, 'examples', example)
 
-        run = subprocess.Popen([executable_path, '--mode=jit', example_path],
-                               stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
+        run = subprocess.Popen(
+            [cls.executable_path, '--mode=jit', example_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
         stdoutdata, stderrdata = run.communicate(stdin)
         return run.returncode, stdoutdata, stderrdata
 
