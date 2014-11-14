@@ -36,20 +36,11 @@ bool BrainfuckInterpreter::init(string::const_iterator start,
   return true;
 }
 
-static bool bf_write(char c) {
-  return putchar(c) != EOF;
-};
-
-static int bf_read() {
-  int c = getchar();
-  if (c == EOF) {
-    return 0;
-  } else {
-    return c;
-  }
-}
-
-void* BrainfuckInterpreter::run(void* memory) {
+void* BrainfuckInterpreter::run(BrainfuckReader reader,
+                                void* reader_arg,
+                                BrainfuckWriter writer,
+                                void* writer_arg,
+                                void* memory) {
   uint8_t* byte_memory = (uint8_t *) memory;
   stack<string::const_iterator> return_stack;
 
@@ -72,11 +63,11 @@ void* BrainfuckInterpreter::run(void* memory) {
          ++it;
         break;
       case ',':
-        *byte_memory = (char) bf_read();
+        *byte_memory = reader(reader_arg);
          ++it;
         break;
       case '.':
-        bf_write(*byte_memory);
+        writer(writer_arg, *byte_memory);
          ++it;
         break;
       case '[':

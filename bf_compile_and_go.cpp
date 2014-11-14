@@ -17,9 +17,9 @@
 
 #include "bf_compile_and_go.h"
 
-typedef void*(*BrainfuckFunction)(bool (write)(void *, char c),
+typedef void*(*BrainfuckFunction)(BrainfuckWriter writer,
                                  void* write_arg,
-                                 int (read)(void *),
+                                 BrainfuckReader reader,
                                  void* read_arg,
                                  void* memory);
 
@@ -99,19 +99,6 @@ const char WRITE[] =
 char LOOP_CMP[] =
   "\x80\x3b\x00";         // cmpb   rbx,$0x0
 
-
-static bool bf_write(void*, char c) {
-  return putchar(c) != EOF;
-};
-
-static int bf_read(void*) {
-  int c = getchar();
-  if (c == EOF) {
-    return 0;
-  } else {
-    return c;
-  }
-}
 
 static bool find_loop_end(string::const_iterator loop_start,
                           string::const_iterator string_end,
@@ -295,8 +282,12 @@ bool BrainfuckCompileAndGo::init(string::const_iterator start,
   return true;  
 }
 
-void* BrainfuckCompileAndGo::run(void* memory) {
-  return ((BrainfuckFunction)executable_)(&bf_write, NULL, &bf_read, NULL, memory);
+void* BrainfuckCompileAndGo::run(BrainfuckReader reader,
+                                 void* reader_arg,
+                                 BrainfuckWriter writer,
+                                 void* writer_arg,
+                                 void* memory) {
+  return ((BrainfuckFunction)executable_)(writer, writer_arg, reader, reader_arg, memory);
 }
 
 BrainfuckCompileAndGo::~BrainfuckCompileAndGo() {

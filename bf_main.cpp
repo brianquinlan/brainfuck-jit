@@ -12,6 +12,19 @@
 using std::string;
 using std::unique_ptr;
 
+static bool bf_write(void*, char c) {
+  return putchar(c) != EOF;
+};
+
+static char bf_read(void*) {
+  int c = getchar();
+  if (c == EOF) {
+    return 0;
+  } else {
+    return c;
+  }
+}
+
 int main(int argc, char *argv[]) {
   unique_ptr<BrainfuckRunner> bf(new BrainfuckInterpreter());
   string bf_file;
@@ -64,6 +77,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  bf->run(memory);
+  bf->run(bf_read, NULL, bf_write, NULL, memory);
   return 0;
 }

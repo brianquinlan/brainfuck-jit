@@ -36,20 +36,11 @@ bool BrainfuckJIT::init(string::const_iterator start,
   return true;
 }
 
-static bool bf_write(char c) {
-  return putchar(c) != EOF;
-};
-
-static int bf_read() {
-  int c = getchar();
-  if (c == EOF) {
-    return 0;
-  } else {
-    return c;
-  }
-}
-
-void* BrainfuckJIT::run(void* memory) {
+void* BrainfuckJIT::run(BrainfuckReader reader,
+                        void* reader_arg,
+                        BrainfuckWriter writer,
+                        void* writer_arg,
+                        void* memory) {
   uint8_t* byte_memory = (uint8_t *) memory;
   stack<string::const_iterator> return_stack;
 
@@ -72,11 +63,11 @@ void* BrainfuckJIT::run(void* memory) {
          ++it;
         break;
       case ',':
-        *byte_memory = (char) bf_read();
+        *byte_memory = reader(reader_arg);
          ++it;
         break;
       case '.':
-        bf_write(*byte_memory);
+        writer(writer_arg, *byte_memory);
          ++it;
         break;
       case '[':
@@ -100,7 +91,11 @@ void* BrainfuckJIT::run(void* memory) {
           }
 
           if (loop.compiled) {
-            byte_memory = (uint8_t *) loop.compiled->run(byte_memory);
+            byte_memory = (uint8_t *) loop.compiled->run(reader,
+                                                         reader_arg,
+                                                         writer,
+                                                         writer_arg,
+                                                         byte_memory);
             it = loop_start_to_loop_[it].loop_end;
           } else if (*byte_memory) {
             return_stack.push(it);

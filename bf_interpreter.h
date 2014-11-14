@@ -14,7 +14,11 @@ class BrainfuckInterpreter : public BrainfuckRunner {
   BrainfuckInterpreter();
   virtual bool init(string::const_iterator start,
                     string::const_iterator end);
-  virtual void* run(void* memory);
+  virtual void* run(BrainfuckReader reader,
+                    void* reader_arg,
+                    BrainfuckWriter writer,
+                    void* writer_arg,
+                    void* memory);
 
  private:
   string::const_iterator start_;
