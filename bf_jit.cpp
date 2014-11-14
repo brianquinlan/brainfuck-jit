@@ -1,9 +1,16 @@
+// Copyright 2014 Brian Quinlan
+// See "LICENSE" file for details.
+
 #include <cstdint>
 #include <stack>
 
 #include "bf_jit.h"
 
 using std::stack;
+
+// The total number of times that a loop condition (e.g. "[") must be evaluated
+// before the loop is compiled.
+const int kLoopCompilationThreshold = 20;
 
 BrainfuckJIT::BrainfuckJIT() {}
 
@@ -12,9 +19,10 @@ bool BrainfuckJIT::init(string::const_iterator start,
   start_ = start;
   end_ = end;
 
+  // Build the mapping from the position of the start of a block (i.e. "]") to
+  // a Loop struct.
   stack<string::const_iterator> block_starts;
-
-  for (string::const_iterator it=start; it != end; ++it) {
+  for (string::const_iterator it = start; it != end; ++it) {
     if (*it == '[') {
       block_starts.push(it);
     } else if (*it == ']') {
@@ -41,10 +49,10 @@ void* BrainfuckJIT::run(BrainfuckReader reader,
                         BrainfuckWriter writer,
                         void* writer_arg,
                         void* memory) {
-  uint8_t* byte_memory = (uint8_t *) memory;
+  uint8_t* byte_memory = reinterpret_cast<uint8_t *>(memory);
   stack<string::const_iterator> return_stack;
 
-  for (string::const_iterator it=start_; it != end_;) {
+  for (string::const_iterator it = start_; it != end_;) {
     switch (*it) {
       case '<':
         --byte_memory;
@@ -71,15 +79,14 @@ void* BrainfuckJIT::run(BrainfuckReader reader,
          ++it;
         break;
       case '[':
-        { 
+        {
           Loop &loop = loop_start_to_loop_[it];
-          ++loop.condition_evaluation_count;
 
           if (loop.compiled == nullptr &&
-              loop.condition_evaluation_count > 20) {
+              loop.condition_evaluation_count > kLoopCompilationThreshold) {
             shared_ptr<BrainfuckCompileAndGo> compiled(
               new BrainfuckCompileAndGo());
-            string::const_iterator compilation_end(loop.loop_end);
+            string::const_iterator compilation_end(loop.after_end);
 
             if (!compiled->init(it, compilation_end)) {
               fprintf(stderr,
@@ -91,17 +98,21 @@ void* BrainfuckJIT::run(BrainfuckReader reader,
           }
 
           if (loop.compiled) {
-            byte_memory = (uint8_t *) loop.compiled->run(reader,
-                                                         reader_arg,
-                                                         writer,
-                                                         writer_arg,
-                                                         byte_memory);
-            it = loop_start_to_loop_[it].loop_end;
-          } else if (*byte_memory) {
-            return_stack.push(it);
-            ++it;
+            byte_memory = reinterpret_cast<uint8_t *>(
+                loop.compiled->run(reader,
+                                   reader_arg,
+                                   writer,
+                                   writer_arg,
+                                   byte_memory));
+            it = loop_start_to_loop_[it].after_end;
           } else {
-            it = loop_start_to_loop_[it].loop_end;
+            ++loop.condition_evaluation_count;
+            if (*byte_memory) {
+              return_stack.push(it);
+              ++it;
+            } else {
+              it = loop_start_to_loop_[it].after_end;
+            }
           }
         }
         break;

@@ -1,3 +1,6 @@
+// Copyright 2014 Brian Quinlan
+// See "LICENSE" file for details.
+
 #include <cstdint>
 #include <stack>
 
@@ -12,15 +15,16 @@ bool BrainfuckInterpreter::init(string::const_iterator start,
   start_ = start;
   end_ = end;
 
+  // Build the mapping from the position of the start of a block (i.e. "]") to
+  // the character *after* the end of the block.
   stack<string::const_iterator> block_starts;
-
-  for (string::const_iterator it=start; it != end; ++it) {
+  for (string::const_iterator it = start; it != end; ++it) {
     if (*it == '[') {
       block_starts.push(it);
     } else if (*it == ']') {
       if (block_starts.size() != 0) {
         const string::const_iterator &loop_start = block_starts.top();
-        loop_start_to_end_[loop_start] = it+1;
+        loop_start_to_after_end_[loop_start] = it+1;
         block_starts.pop();
       }
     }
@@ -41,10 +45,13 @@ void* BrainfuckInterpreter::run(BrainfuckReader reader,
                                 BrainfuckWriter writer,
                                 void* writer_arg,
                                 void* memory) {
-  uint8_t* byte_memory = (uint8_t *) memory;
+  uint8_t* byte_memory = reinterpret_cast<uint8_t *>(memory);
+  // When processing a "[", push the position of that opcode onto a stack so
+  // that we can quickly return to the start of the block when then "]" is
+  // interpreted.
   stack<string::const_iterator> return_stack;
 
-  for (string::const_iterator it=start_; it != end_;) {
+  for (string::const_iterator it = start_; it != end_;) {
     switch (*it) {
       case '<':
         --byte_memory;
@@ -75,7 +82,7 @@ void* BrainfuckInterpreter::run(BrainfuckReader reader,
           return_stack.push(it);
            ++it;
         } else {
-          it = loop_start_to_end_[it];
+          it = loop_start_to_after_end_[it];
         }
         break;
       case ']':

@@ -1,5 +1,12 @@
-#ifndef BF_COMPILE_AND_GO
-#define BF_COMPILE_AND_GO
+// Copyright 2014 Brian Quinlan
+// See "LICENSE" file for details.
+//
+// Implements a BrainfuckRunner that compiles the complete source into amd64
+// machine code. For a description of the team "compile and go", see:
+// http://en.wikipedia.org/wiki/Compile_and_go_system
+
+#ifndef BF_COMPILE_AND_GO_H_
+#define BF_COMPILE_AND_GO_H_
 
 #include <string>
 
@@ -19,6 +26,7 @@ class BrainfuckCompileAndGo : public BrainfuckRunner {
                     void* memory);
 
   virtual ~BrainfuckCompileAndGo();
+
  private:
   int executable_size_;
   void* executable_;
@@ -42,4 +50,4 @@ class BrainfuckCompileAndGo : public BrainfuckRunner {
   void generate_write_code(string* code);
 };
 
-#endif  // BF_COMPILE_AND_GO
+#endif  // BF_COMPILE_AND_GO_H_

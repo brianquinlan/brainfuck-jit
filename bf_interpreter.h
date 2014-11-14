@@ -1,5 +1,11 @@
-#ifndef BF_INTERPRETER
-#define BF_INTERPRETER
+// Copyright 2014 Brian Quinlan
+// See "LICENSE" file for details.
+//
+// Implements a BrainfuckRunner that interprets the Brainfuck source one opcode
+// at a time.
+
+#ifndef BF_INTERPRETER_H_
+#define BF_INTERPRETER_H_
 
 #include <map>
 #include <string>
@@ -24,7 +30,12 @@ class BrainfuckInterpreter : public BrainfuckRunner {
   string::const_iterator start_;
   string::const_iterator end_;
 
-  map<string::const_iterator, string::const_iterator> loop_start_to_end_;
+  // Maps the position of a Brainfuck block start to the token after the end of
+  // the block e.g.
+  // ,[..,]
+  //  ^    ^
+  //  x => y
+  map<string::const_iterator, string::const_iterator> loop_start_to_after_end_;
 };
 
-#endif  // BF_INTERPRETER
+#endif  // BF_INTERPRETER_H_

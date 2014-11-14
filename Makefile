@@ -9,6 +9,9 @@ bf: bf_main.cpp *.cpp *.h
 test: bf
 	python test_runner.py
 
+presubmit: test *.cpp *.h
+	python tools/cpplint.py *.cpp *.h
+
 benchmark: bf
 	python benchmark.py
 
