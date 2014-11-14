@@ -107,40 +107,48 @@ class ConsistentOutputTest(unittest.TestCase):
       possible_zero_index_tokens = ['+', '-', '>', ',', '.']
       tokens = []
       offset = 0
+      tokens = []
+      offset = 0
       for _ in range(1024):
-          if tokens.count('<') >= tokens.count('>'):
-              tokens.append(random.choice(possible_zero_index_tokens))
+          if offset:
+              token = random.choice(possible_tokens)
           else:
-              tokens.append(random.choice(possible_tokens))
+              token = random.choice(possible_zero_index_tokens)
+
+          if token == '<':
+              offset -= 1
+          elif token == '>':
+              offset += 1
+          tokens.append(token)
       return ''.join(tokens)
 
     def _generate_input(self, length):
-      return ''.join([chr(random.randrange(256)) for _ in range(length)])
+        return ''.join([chr(random.randrange(256)) for _ in range(length)])
 
     def _check_consistency_with_fuzz(self):
-      brainfuck_code = self._generate_brainfuck_no_loop()
-      # Can't require more input than the length of the code (without loops).
-      brainfuck_input = self._generate_input(len(brainfuck_code))
-      with tempfile.NamedTemporaryFile(suffix='.b', delete=False) as f:
-        f.write(brainfuck_code)
-        f.close()
+        brainfuck_code = self._generate_brainfuck_no_loop()
+        # Can't require more input than the length of the code (without loops).
+        brainfuck_input = self._generate_input(len(brainfuck_code))
+        with tempfile.NamedTemporaryFile(suffix='.b', delete=False) as f:
+            f.write(brainfuck_code)
+            f.close()
 
-        stdouts = []
-        for klass in [TestCompileAndGo, TestInterpreter, TestJIT]:
-            returncode, stdout, stderr = klass.run_brainfuck(
-                f.name, stdin=brainfuck_input)
-            self.assertEqual(returncode, 0)
-            self.assertEqual(stderr, '')
-            stdouts.append((klass, stdout))
+            stdouts = []
+            for klass in [TestCompileAndGo, TestInterpreter, TestJIT]:
+                returncode, stdout, stderr = klass.run_brainfuck(
+                    f.name, stdin=brainfuck_input)
+                self.assertEqual(returncode, 0)
+                self.assertEqual(stderr, '')
+                stdouts.append((klass, stdout))
 
-        reference_klass, reference_stdout = stdouts[0]
-        self.longMessage = True
-        for klass, stdout in stdouts[1:]:
-            self.assertSequenceEqual(
-                reference_stdout, stdout,
-                'output for %s does not match output for %s for file %s' % (
-                    reference_klass.__name__, klass.__name__, f.name))
-        os.unlink(f.name)
+            reference_klass, reference_stdout = stdouts[0]
+            self.longMessage = True
+            for klass, stdout in stdouts[1:]:
+                self.assertSequenceEqual(
+                    reference_stdout, stdout,
+                    'output for %s does not match output for %s for file %s' % (
+                        reference_klass.__name__, klass.__name__, f.name))
+            os.unlink(f.name)
 
     def test_consistency_with_fuzz(self):
       for _ in range(100):
