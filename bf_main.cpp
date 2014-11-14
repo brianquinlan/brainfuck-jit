@@ -8,8 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "bf_runner.h"
 #include "bf_compile_and_go.h"
@@ -18,6 +19,7 @@
 
 using std::string;
 using std::unique_ptr;
+using std::vector;
 
 const size_t kBrainfuckMemorySize = 1024 * 1024;
 
@@ -47,6 +49,55 @@ static char bf_read(void*) {
   }
 }
 
+int run_brainfuck_program(BrainfuckRunner* runner,
+                          const string& source_file_path) {
+  FILE *bf_source_file = fopen(source_file_path.c_str(), "rb");
+  if (bf_source_file == NULL) {
+    fprintf(stderr, "Could not open file \"%s\": %s\n",
+            source_file_path.c_str(), strerror(errno));
+    return 1;
+  }
+
+  if (fseek(bf_source_file, 0, SEEK_END)) {
+    fprintf(stderr, "Could not seek in \"%s\": %s\n",
+            source_file_path.c_str(), strerror(ferror(bf_source_file)));
+    return 1;
+  }
+
+  long source_size = ftell(bf_source_file);
+  if (source_size == -1) {
+    fprintf(stderr, "Could not tell in \"%s\": %s\n",
+            source_file_path.c_str(), strerror(errno));
+    return 1;
+  }
+  rewind(bf_source_file);
+
+  char* source_buffer = reinterpret_cast<char *>(malloc(source_size));
+  size_t amount_read = fread(source_buffer, 1, source_size, bf_source_file);
+  fclose(bf_source_file);
+  if (amount_read != static_cast<size_t>(source_size)) {
+    fprintf(stderr, "Error reading file \"%s\": %s\n",
+            source_file_path.c_str(), strerror(errno));
+    return 1;
+  }
+
+  void* memory = calloc(kBrainfuckMemorySize, 1);
+  if (memory == NULL) {
+    fprintf(stderr,
+            "Unable to allocate memory %ld bytes for Brainfuck memory\n",
+            static_cast<unsigned long>(kBrainfuckMemorySize));
+  }
+
+  const string source(source_buffer, source_size);
+
+  if (!runner->init(source.begin(), source.end())) {
+    return 1;
+  }
+
+  runner->run(bf_read, NULL, bf_write, NULL, memory);
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   unique_ptr<BrainfuckRunner> bf(new BrainfuckInterpreter());
   string bf_file;
@@ -61,73 +112,39 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (argc == 3) {
-    string mode(argv[1]);
-    if (mode == "--mode=cag") {
-      unique_ptr<BrainfuckRunner> compile_and_go(new BrainfuckCompileAndGo());
-      bf = std::move(compile_and_go);
-    } else if (mode == "--mode=i") {
-      unique_ptr<BrainfuckRunner> interpreter(new BrainfuckInterpreter());
-      bf = std::move(interpreter);
-    } else if (mode == "--mode=jit") {
-      unique_ptr<BrainfuckRunner> jit(new BrainfuckJIT());
-      bf = std::move(jit);
+  vector<string> files;
+  for (int i = 1; i < argc; ++i) {
+    string arg(argv[i]);
+    if (arg.find("--") == 0) {
+      if (arg.find("--mode=") == 0) {
+        if (arg == "--mode=cag") {
+          unique_ptr<BrainfuckRunner> compile_and_go(
+              new BrainfuckCompileAndGo());
+          bf = std::move(compile_and_go);
+        } else if (arg == "--mode=i") {
+          unique_ptr<BrainfuckRunner> interpreter(new BrainfuckInterpreter());
+          bf = std::move(interpreter);
+        } else if (arg == "--mode=jit") {
+          unique_ptr<BrainfuckRunner> jit(new BrainfuckJIT());
+          bf = std::move(jit);
+        } else {
+          fprintf(stderr, "Unexpected mode: %s\n", arg.c_str());
+          return 1;
+        }
+      } else {
+        fprintf(stderr, "Unexpected argument: %s\n", arg.c_str());
+        return 1;
+      }
     } else {
-      fprintf(stderr, "Unexpected mode: %s\n", argv[1]);
-      return 1;
+      files.push_back(arg);
     }
-    bf_file = argv[2];
-  } else if (argc == 2) {
-    bf_file = argv[1];
-  } else {
-    fputs("You need to specify a file.\n", stderr);
+  }
+
+  if (files.size() != 1) {
+    fputs("You need to specify exactly one Brainfuck file\n", stderr);
     printf(USAGE, argv[0], argv[0]);
     return 1;
   }
 
-  FILE *bf_source_file = fopen(bf_file.c_str(), "rb");
-  if (bf_source_file == NULL) {
-    fprintf(stderr, "Could not open file \"%s\": %s\n",
-            bf_file.c_str(), strerror(errno));
-    return 1;
-  }
-
-  if (fseek(bf_source_file, 0, SEEK_END)) {
-    fprintf(stderr, "Could not seek in \"%s\": %s\n",
-            bf_file.c_str(), strerror(ferror(bf_source_file)));
-    return 1;
-  }
-
-  long source_size = ftell(bf_source_file);
-  if (source_size == -1) {
-    fprintf(stderr, "Could not tell in \"%s\": %s\n",
-            bf_file.c_str(), strerror(errno));
-    return 1;
-  }
-  rewind(bf_source_file);
-
-  char* source_buffer = reinterpret_cast<char *>(malloc(source_size));
-  size_t amount_read = fread(source_buffer, 1, source_size, bf_source_file);
-  fclose(bf_source_file);
-  if (amount_read != static_cast<size_t>(source_size)) {
-    fprintf(stderr, "Error reading file \"%s\": %s\n",
-            bf_file.c_str(), strerror(errno));
-    return 1;
-  }
-
-  void* memory = calloc(kBrainfuckMemorySize, 1);
-  if (memory == NULL) {
-    fprintf(stderr,
-            "Unable to allocate memory %ld bytes for Brainfuck memory\n",
-            static_cast<unsigned long>(kBrainfuckMemorySize));
-  }
-
-  const string source(source_buffer, source_size);
-
-  if (!bf->init(source.begin(), source.end())) {
-    return 1;
-  }
-
-  bf->run(bf_read, NULL, bf_write, NULL, memory);
-  return 0;
+  return run_brainfuck_program(bf.get(), files[0]);
 }
