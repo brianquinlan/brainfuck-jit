@@ -25,6 +25,7 @@ __pycache__/
 *.lib
 
 # Executables
+bf
 *.exe
 *.out
 *.app
