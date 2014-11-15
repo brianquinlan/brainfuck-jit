@@ -1,5 +1,5 @@
 CC=g++
-CPPFLAGS=-Wall -Wextra -O3
+CPPFLAGS=-std=c++11 -Wall -Wextra -O3
 
 all: bf
 
