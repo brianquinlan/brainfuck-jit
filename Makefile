@@ -11,7 +11,7 @@ test: bf
 
 presubmit: test *.cpp *.h
 	python tools/cpplint.py *.cpp *.h
-	(which pylint >/dev/null && pylint test_runner benchmark) || (which pylint >/dev/null || echo "WARNING: pylint is not installed, skipping Python checks.")
+	(which pylint >/dev/null && pylint --reports=n test_runner benchmark) || (which pylint >/dev/null || echo "WARNING: pylint is not installed, skipping Python checks.")
 
 benchmark: bf
 	python benchmark.py
