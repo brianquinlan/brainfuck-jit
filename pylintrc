@@ -1,3 +1,5 @@
 [BASIC]
 disable=locally-disabled
 docstring-min-length=10
+function-rgx=[a-z_][a-z0-9_]{2,64}$
+method-rgx=[a-z_][a-z0-9_]{2,64}$
