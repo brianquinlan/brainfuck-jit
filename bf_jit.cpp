@@ -50,6 +50,9 @@ void* BrainfuckJIT::run(BrainfuckReader reader,
                         void* writer_arg,
                         void* memory) {
   uint8_t* byte_memory = reinterpret_cast<uint8_t *>(memory);
+  // When processing a "[", push the position of that opcode onto a stack so
+  // that we can quickly return to the start of the block when then "]" is
+  // interpreted.
   stack<string::const_iterator> return_stack;
 
   for (string::const_iterator it = start_; it != end_;) {
