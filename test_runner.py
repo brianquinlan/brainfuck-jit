@@ -7,14 +7,42 @@
 
 from __future__ import absolute_import
 
+import functools
 import os
 import os.path
 import random
 import subprocess
 import tempfile
+import time
 import unittest
 
 EXECUTABLE_PATH = os.path.join(os.curdir, 'bf')
+
+
+def _check_datapointer_in_range(tokens, restore_offset):
+    offset = 0
+    for token in tokens:
+        if token == '<':
+            offset -= 1
+        elif token == '>':
+            offset += 1
+        assert offset >= 0
+    if restore_offset:
+        assert offset == 0
+
+
+def _repeat_for_seconds(seconds):
+    """Repeat the decorated function for the given number of seconds."""
+    def repeat(func):
+        @functools.wraps(func)
+        def repeater(*args, **kwds):
+            end_time = time.time() + seconds
+            while time.time() < end_time:
+                func(*args, **kwds)
+                repeater.count += 1
+        repeater.count = 0
+        return repeater
+    return repeat
 
 
 def run_brainfuck(args, stdin=''):
@@ -36,18 +64,6 @@ def run_brainfuck(args, stdin=''):
                            stderr=subprocess.PIPE)
     stdoutdata, stderrdata = run.communicate(stdin)
     return run.returncode, stdoutdata, stderrdata
-
-
-def _check_datapointer_in_range(tokens, restore_offset):
-    offset = 0
-    for token in tokens:
-        if token == '<':
-            offset -= 1
-        elif token == '>':
-            offset += 1
-        assert offset >= 0
-    if restore_offset:
-        assert offset == 0
 
 
 def generate_brainfuck_code_without_loops(
@@ -324,19 +340,18 @@ class ConsistentOutputTest(unittest.TestCase):
                         brainfuck_source_file.name))
             os.unlink(brainfuck_source_file.name)
 
+    @_repeat_for_seconds(2)
     def test_consistency_with_random_no_loop_input(self):
-        for _ in range(100):
-            brainfuck_code = generate_brainfuck_code_without_loops(
-                '+-<>,.', 80)
-            # Can't require more input than the length of the code
-            # (without loops).
-            brainfuck_input = self._generate_input(len(brainfuck_code))
-            self._check_consistency_with_code(brainfuck_code, brainfuck_input)
+        brainfuck_code = generate_brainfuck_code_without_loops(
+            '+-<>,.', 80)
+        # Can't require more input than the length of the code (without loops).
+        brainfuck_input = self._generate_input(len(brainfuck_code))
+        self._check_consistency_with_code(brainfuck_code, brainfuck_input)
 
+    @_repeat_for_seconds(2)
     def test_consistency_with_random_loop_input(self):
-        for _ in range(100):
-            brainfuck_code = generate_brainfuck_code('<>+-[].', 80, 2)
-            self._check_consistency_with_code(brainfuck_code, '')
+        brainfuck_code = generate_brainfuck_code('<>+-[].', 80, 2)
+        self._check_consistency_with_code(brainfuck_code, '')
 
 if __name__ == '__main__':
     unittest.main()
