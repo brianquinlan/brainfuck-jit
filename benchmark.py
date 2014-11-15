@@ -64,7 +64,7 @@ def time_all(name, path, number):
     print 'Compile and Run: %.2f seconds (%.2f%%)' % (
         compile_and_go_time, compile_and_go_time * 100 / interpreter_time)
     jit_time = time('jit', path, number)
-    print 'JIT):             %.2f seconds (%.2f%%)' % (
+    print 'JIT:             %.2f seconds (%.2f%%)' % (
         jit_time, jit_time * 100 / interpreter_time)
 
 def main():  # pylint: disable=missing-docstring
