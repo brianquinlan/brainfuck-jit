@@ -1,7 +1,7 @@
 // Copyright 2014 Brian Quinlan
 // See "LICENSE" file for details.
 //
-// Compiles Brainfuck opcodes into amd64 machine code and executes it. The
+// Compiles Brainfuck commands into amd64 machine code and executes it. The
 // assembly documentation uses Intel syntax (see
 // http://en.wikipedia.org/wiki/X86_assembly_language#Syntax) and was assembled
 // using https://defuse.ca/online-x86-assembler.htm.
@@ -149,7 +149,7 @@ void BrainfuckCompileAndGo::add_jmp_to_exit(string* code) {
 bool BrainfuckCompileAndGo::generate_loop_code(string::const_iterator start,
                                                string::const_iterator end,
                                                string* code) {
-  // Converts a Brainfuck instruction sequence like this:
+  // Converts a Brainfuck command sequence like this:
   // [<code>]
   // Into this:
   // loop_start:

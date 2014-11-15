@@ -1,7 +1,7 @@
 // Copyright 2014 Brian Quinlan
 // See "LICENSE" file for details.
 //
-// Implements a BrainfuckRunner that interprets the Brainfuck source one opcode
+// Implements a BrainfuckRunner that interprets the Brainfuck source one command
 // at a time but will use BrainfuckCompileAndGo to execute loops that are
 // run frequently.
 

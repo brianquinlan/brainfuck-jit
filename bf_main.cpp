@@ -34,13 +34,13 @@ const char USAGE[] = "Usage: %s [options] <Brainfuck file>\n"
                      "--mode=jit : Run using a Just-In-Time compiler\n";
 
 // Passed to BrainfuckRunner->run(...) to provide output functionality for
-// the "." opcode.
+// the "." command.
 static bool bf_write(void*, char c) {
   return putchar(c) != EOF;
 }
 
 // Passed to BrainfuckRunner->run(...) to provide input functionality for
-// the "," opcode.
+// the "," command.
 static char bf_read(void*) {
   int c = getchar();
   if (c == EOF) {

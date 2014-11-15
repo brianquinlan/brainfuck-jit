@@ -19,12 +19,12 @@ import unittest
 EXECUTABLE_PATH = os.path.join(os.curdir, 'bf')
 
 
-def _check_datapointer_in_range(tokens, restore_offset):
+def _check_datapointer_in_range(commands, restore_offset):
     offset = 0
-    for token in tokens:
-        if token == '<':
+    for command in commands:
+        if command == '<':
             offset -= 1
-        elif token == '>':
+        elif command == '>':
             offset += 1
         assert offset >= 0
     if restore_offset:
@@ -67,109 +67,110 @@ def run_brainfuck(args, stdin=''):
 
 
 def generate_brainfuck_code_without_loops(
-        token_set,
-        num_tokens,
+        command_set,
+        num_commands,
         restore_offset=False):
-    """Generate Brainfuck code (without loops) using the given set of tokens.
+    """Generate Brainfuck code (without loops) using the given set of commands.
 
     Args:
-        token_set: A sequence containing the tokens to use e.g. '<>+-,.'. May
-            not contain '[' or ']'.
-        num_tokens: The length of the returned string.
+        command_set: A sequence containing the commands to use e.g. '<>+-,.'.
+            May not contain '[' or ']'.
+        num_commands: The length of the returned string.
         restore_offset: If True then there should be no net movement of the
             data pointer when the code is finished exited.
 
     Returns:
-        A sequence of Brainfuck instructions from the given token_set e.g.
+        A sequence of Brainfuck commands from the given command_set e.g.
         '+>-<,,.>><<'.
     """
-    assert '[' not in token_set
-    assert ']' not in token_set
+    assert '[' not in command_set
+    assert ']' not in command_set
 
-    possible_tokens = list(token_set)
-    possible_tokens_no_left = list(set(token_set) - set(['<']))
+    possible_commands = list(command_set)
+    possible_commands_no_left = list(set(command_set) - set(['<']))
 
-    tokens = []
+    commands = []
     offset = 0
-    while len(tokens) < num_tokens:
+    while len(commands) < num_commands:
         if restore_offset:
             offset_fix = offset
-            if offset_fix and offset_fix >= len(tokens) - num_tokens + 1:
+            if offset_fix and offset_fix >= len(commands) - num_commands + 1:
                 if offset > 0:
-                    tokens.extend('<' * offset_fix)
+                    commands.extend('<' * offset_fix)
                 else:
-                    tokens.extend('>' * offset_fix)
+                    commands.extend('>' * offset_fix)
                 offset = 0
                 continue
 
         if offset:
-            token = random.choice(possible_tokens)
+            command = random.choice(possible_commands)
         else:
-            token = random.choice(possible_tokens_no_left)
+            command = random.choice(possible_commands_no_left)
 
         if (restore_offset and
-                num_tokens - len(tokens) == 1 and
-                token in '<>'):
+                num_commands - len(commands) == 1 and
+                command in '<>'):
             continue
 
-        if token == '<':
+        if command == '<':
             offset -= 1
-        elif token == '>':
+        elif command == '>':
             offset += 1
-        tokens.append(token)
+        commands.append(command)
 
-    _check_datapointer_in_range(tokens, restore_offset)
-    assert len(tokens) == num_tokens
-    assert set(tokens) <= set(token_set)
-    return ''.join(tokens)
+    _check_datapointer_in_range(commands, restore_offset)
+    assert len(commands) == num_commands
+    assert set(commands) <= set(command_set)
+    return ''.join(commands)
 
 
 _LOOP_TEMPLATE = '-[>%s<-]'
 _EMPTY_LOOP_TEMPLATE_LEN = len(_LOOP_TEMPLATE % '')
 
 
-def generate_brainfuck_code(token_set, num_tokens, max_loop_depth):
-    """Generate Brainfuck code using the given set of tokens.
+def generate_brainfuck_code(command_set, num_commands, max_loop_depth):
+    """Generate Brainfuck code using the given set of commands.
 
     Args:
-        token_set: A sequence containing the tokens to use e.g. '<>+-,.[]'.
-        num_tokens: The length of the returned string.
+        command_set: A sequence containing the commands to use e.g. '<>+-,.[]'.
+        num_commands: The length of the returned string.
         max_loop_depth: The maximim level of nesting for loops e.g. 2.
 
     Returns:
-        A sequence of Brainfuck instructions from the given token_set e.g.
+        A sequence of Brainfuck commands from the given command_set e.g.
         '+--[>,.-[>>>>.<<<<-]<-]><'.
     """
-    tokens_without_loops = ''.join(set(token_set) - set(['[', ']']))
-    if '[' not in token_set or ']' not in token_set:
+    commands_without_loops = ''.join(set(command_set) - set(['[', ']']))
+    if '[' not in command_set or ']' not in command_set:
         max_loop_depth = 0
 
     code_blocks = []
-    remaining_tokens = num_tokens
-    while remaining_tokens:
+    remaining_commands = num_commands
+    while remaining_commands:
         if (max_loop_depth and
-                remaining_tokens >= _EMPTY_LOOP_TEMPLATE_LEN and
+                remaining_commands >= _EMPTY_LOOP_TEMPLATE_LEN and
                 random.choice(['loop', 'code']) == 'loop'):
             code_block = _LOOP_TEMPLATE % (
                 generate_brainfuck_code(
-                    token_set,
+                    command_set,
                     random.randrange(
-                        remaining_tokens - _EMPTY_LOOP_TEMPLATE_LEN + 1),
+                        remaining_commands - _EMPTY_LOOP_TEMPLATE_LEN + 1),
                     max_loop_depth - 1))
         else:
             code_block = generate_brainfuck_code_without_loops(
-                tokens_without_loops,
-                random.randrange(remaining_tokens+1),
+                commands_without_loops,
+                random.randrange(remaining_commands+1),
                 restore_offset=True)
 
-        remaining_tokens -= len(code_block)
+        remaining_commands -= len(code_block)
         code_blocks.append(code_block)
 
-    tokens = ''.join(code_blocks)
-    assert len(tokens) == num_tokens, 'len(tokens) [%d] == num_tokens [%d]' % (
-        len(tokens), num_tokens)
-    assert set(tokens) <= set(token_set)
-    return tokens
+    commands = ''.join(code_blocks)
+    assert len(commands) == num_commands, (
+        'len(commands) [%d] == num_commands [%d]' % (
+            len(commands), num_commands))
+    assert set(commands) <= set(command_set)
+    return commands
 
 
 class TestExecutable(unittest.TestCase):
