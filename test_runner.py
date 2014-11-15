@@ -124,8 +124,19 @@ def generate_brainfuck_code_without_loops(
     return ''.join(commands)
 
 
-_LOOP_TEMPLATE = '-[>%s<-]'
-_EMPTY_LOOP_TEMPLATE_LEN = len(_LOOP_TEMPLATE % '')
+_LOOP_TEMPLATE = '-[>%s<%s]'
+_EMPTY_LOOP_TEMPLATE_LEN = len(_LOOP_TEMPLATE % ('', ''))
+_FACTORS_OF_255 = [1, 3, 5, 15, 17, 51, 85, 255]
+
+# A quick demonstration that all factors of 255 can be used to decrement an
+# 8-bit counter to zero, assuming underflow. This is an axiom used to prevent
+# infinite loops in generate_brainfuck_code.
+for factor in _FACTORS_OF_255:
+    for value in range(256):
+        while value != 0:
+            value -= factor
+            if value < 0:
+                value += 256
 
 
 def generate_brainfuck_code(command_set, num_commands, max_loop_depth):
@@ -148,14 +159,22 @@ def generate_brainfuck_code(command_set, num_commands, max_loop_depth):
     remaining_commands = num_commands
     while remaining_commands:
         if (max_loop_depth and
-                remaining_commands >= _EMPTY_LOOP_TEMPLATE_LEN and
+                # Need one extra space to decrement the loop counter.
+                remaining_commands >= _EMPTY_LOOP_TEMPLATE_LEN + 1 and
                 random.choice(['loop', 'code']) == 'loop'):
+            decrement_space = remaining_commands - _EMPTY_LOOP_TEMPLATE_LEN
+            possible_loop_decrement_counts = [f for f in _FACTORS_OF_255
+                                              if f <= decrement_space]
+            loop_decrement = '-' * random.choice(possible_loop_decrement_counts)
+            max_loop_body_size = (remaining_commands -
+                                  _EMPTY_LOOP_TEMPLATE_LEN
+                                  - len(loop_decrement))
             code_block = _LOOP_TEMPLATE % (
                 generate_brainfuck_code(
                     command_set,
-                    random.randrange(
-                        remaining_commands - _EMPTY_LOOP_TEMPLATE_LEN + 1),
-                    max_loop_depth - 1))
+                    random.randrange(max_loop_body_size + 1),
+                    max_loop_depth - 1),
+                loop_decrement)
         else:
             code_block = generate_brainfuck_code_without_loops(
                 commands_without_loops,
