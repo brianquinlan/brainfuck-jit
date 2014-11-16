@@ -1,7 +1,9 @@
-# BrainfuckCompileAndGo could not cope with > 127 consecutive shifts.
+# BrainfuckCompileAndGo could not cope with > 127 consecutive shifts
+
+# Setup memory for Hello World
 ++++++++++[>+++++++>++++++++++>+++>+<<<<-]
 
-# Shift 512 places to the right.
+# Shift 512 places to the right
 >>>>>>>>>>>>>>>> >>>>>>>>>>>>>>>> []
 >>>>>>>>>>>>>>>> >>>>>>>>>>>>>>>> []
 >>>>>>>>>>>>>>>> >>>>>>>>>>>>>>>> []
@@ -22,7 +24,7 @@
 >>>>>>>>>>>>>>>> >>>>>>>>>>>>>>>> []
 >>>>>>>>>>>>>>>> >>>>>>>>>>>>>>>> []
 
-# Shift all the way back to the left.
+# Shift all the way back to the left
 <<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<
 <<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<
 <<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<
@@ -43,4 +45,5 @@
 <<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<
 <<<<<<<<<<<<<<<< <<<<<<<<<<<<<<<<
 
+# Prints "Hello World!" assuming that the shift back to offset 0 worked
 >++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.

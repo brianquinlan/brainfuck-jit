@@ -301,6 +301,13 @@ class BrainfuckRunnerTestMixin(object):
         self.assertEqual(stdout, 'Mm')
         self.assertEqual(stderr, '')
 
+    def test_regression2(self):
+        returncode, stdout, stderr = self.run_brainfuck('regression2.b')
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(stdout, 'Hello World!\n')
+        self.assertEqual(stderr, '')
+
 
 # pylint: disable=too-few-public-methods
 class TestCompileAndGo(unittest.TestCase, BrainfuckRunnerTestMixin):
