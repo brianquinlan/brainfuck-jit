@@ -11,6 +11,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import argparse
+import itertools
 import tempfile
 import test_runner
 import timeit
@@ -50,15 +51,15 @@ def time_all(trial_number, path, repeat, number):
     """Time all execution modes with the given file."""
 
     interpreter_min_time = time('i', path, repeat, number)
-    compile_and_go_min_time = time('cag', path, repeat, number)
+    compiler_min_time = time('cag', path, repeat, number)
     jit_min_time = time('jit', path, repeat, number)
 
     print TRIAL_FORMAT % (
         trial_number,
         interpreter_min_time,
-        compile_and_go_min_time,
+        compiler_min_time,
         jit_min_time)
-    return interpreter_min_time, compile_and_go_min_time, jit_min_time
+    return interpreter_min_time, compiler_min_time, jit_min_time
 
 
 def main():  # pylint: disable=missing-docstring
@@ -86,7 +87,7 @@ def main():  # pylint: disable=missing-docstring
 
     print
     print HEADER
-    for max_nested_loops in range(3):
+    for max_nested_loops in itertools.count():
         print TRIALS_HEADER_FORMAT % max_nested_loops
         times = []
         for trial_number in range(options.num_trials):
