@@ -76,14 +76,20 @@ def main():  # pylint: disable=missing-docstring
         help=('the number of times to run each command before collecting the '
               'time'))
 
+    parser.add_argument(
+        '--trials', '-t',
+        dest='num_trials', action='store', type=int, default=20,
+        help=('the of randomly generated code samples to use for each loop '
+              'level'))
+
     options = parser.parse_args()
 
     print
     print HEADER
-    for max_nested_loops in range(10):
+    for max_nested_loops in range(3):
         print TRIALS_HEADER_FORMAT % max_nested_loops
         times = []
-        for trial_number in range(10):
+        for trial_number in range(options.num_trials):
             brainfuck_code = test_runner.generate_brainfuck_code(
                 '<>+-[]\n', 1024 * 1024, max_nested_loops)
             # pylint doesn't seem to understand with statements
