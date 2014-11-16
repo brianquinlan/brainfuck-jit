@@ -11,26 +11,9 @@ from __future__ import absolute_import
 from __future__ import division
 
 import argparse
-import os
-import os.path
 import tempfile
 import test_runner
 import timeit
-
-MODES = ['cag', 'i', 'jit']
-EXECUTABLE_PATH = os.path.join(os.curdir, 'bf')
-
-
-def time(mode, path, repeat, number):
-    times = timeit.repeat(
-        ("returncode, _, stderr = run_brainfuck(['--mode=%s', %r]); " +
-         "assert returncode == 0, 'returncode = %%d, stderr = %%r' %% (" +
-         "      returncode, stderr)") % (mode, path),
-        setup="from test_runner import run_brainfuck",
-        repeat=repeat,
-        number=number)
-    return min(times)
-
 
 HEADER = (
 #pylint: disable=bad-continuation
@@ -51,6 +34,17 @@ TRIAL_SUMMARY_FORMAT = (
 "----------------------------------------------------------------------------\n"
 "Total (range):  %6.2f              %6.2f (%0.2f-%0.2f)  %6.2f (%0.2f-%0.2f)\n"
 )
+
+def time(mode, path, repeat, number):
+    times = timeit.repeat(
+        ("returncode, _, stderr = run_brainfuck(['--mode=%s', %r]); " +
+         "assert returncode == 0, 'returncode = %%d, stderr = %%r' %% (" +
+         "      returncode, stderr)") % (mode, path),
+        setup="from test_runner import run_brainfuck",
+        repeat=repeat,
+        number=number)
+    return min(times)
+
 
 def time_all(trial_number, path, repeat, number):
     """Time all execution modes with the given file."""
