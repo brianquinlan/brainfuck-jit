@@ -8,11 +8,13 @@
 #ifndef BF_COMPILE_AND_GO_H_
 #define BF_COMPILE_AND_GO_H_
 
+#include <map>
 #include <string>
 
 #include "bf_runner.h"
 
 using std::string;
+using std::map;
 
 class BrainfuckCompileAndGo : public BrainfuckRunner {
  public:
@@ -36,16 +38,15 @@ class BrainfuckCompileAndGo : public BrainfuckRunner {
   void add_jl_to_exit(string* code);
   void add_jmp_to_offset(int offset, string* code);
   void add_jmp_to_exit(string* code);
+  void emit_offset_table(map<int8_t, uint8_t>* offset_to_change,
+                         int8_t* offset,
+                         string *code);
   bool generate_sequence_code(string::const_iterator start,
                               string::const_iterator end,
                               string* code);
   bool generate_loop_code(string::const_iterator start,
                           string::const_iterator end,
                           string* code);
-  void generate_left_code(string* code);
-  void generate_right_code(string* code);
-  void generate_subtract_code(string* code);
-  void generate_add_code(string* code);
   void generate_read_code(string* code);
   void generate_write_code(string* code);
 };

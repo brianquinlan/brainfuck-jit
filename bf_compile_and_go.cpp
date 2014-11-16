@@ -19,7 +19,6 @@
 #include <limits.h>
 
 #include <cstdint>
-#include <string>
 
 #include "bf_compile_and_go.h"
 
@@ -62,26 +61,6 @@ const char EXIT[] =
   "\x41\x5d"              // pop    r13
   "\x41\x5c"              // pop    r12
   "\xc3";                 // retq
-
-// < --rbx;
-const char LEFT[] =
-  "\x48\x83\xeb\x01";     // sub    rbx,1
-
-// > ++rbx;
-const char RIGHT[] =
-  "\x48\x83\xc3\x01";     // add    rbx,1
-
-// - *rbx -= 1;
-const char SUBTRACT[] =
-  "\x8a\x03"              // mov    al,[rbx]
-  "\x2c\x01"              // sub    al,1
-  "\x88\x03";             // mov    [rbx],al
-
-// + *rbx += 1;
-const char ADD[] =
-  "\x8a\x03"              // mov    al,[rbx]
-  "\x04\x01"              // add    al,1
-  "\x88\x03";             // mov    [rbx],al
 
 // , [part1] rax = read(rdp); if (rax == 0) goto exit; ...
 const char READ[] =
@@ -182,22 +161,6 @@ bool BrainfuckCompileAndGo::generate_loop_code(string::const_iterator start,
   return true;
 }
 
-void BrainfuckCompileAndGo::generate_left_code(string* code) {
-  *code += string(LEFT, sizeof(LEFT) - 1);
-}
-
-void BrainfuckCompileAndGo::generate_right_code(string* code) {
-  *code += string(RIGHT, sizeof(RIGHT) - 1);
-}
-
-void BrainfuckCompileAndGo::generate_subtract_code(string* code) {
-  *code += string(SUBTRACT, sizeof(SUBTRACT) - 1);
-}
-
-void BrainfuckCompileAndGo::generate_add_code(string* code) {
-  *code += string(ADD, sizeof(ADD) - 1);
-}
-
 void BrainfuckCompileAndGo::generate_read_code(string* code) {
   *code += string(READ, sizeof(READ) - 1);
   add_jl_to_exit(code);
@@ -209,30 +172,85 @@ void BrainfuckCompileAndGo::generate_write_code(string* code) {
   add_jne_to_exit(code);
 }
 
+// Converts a table of updates to make to Brainfuck memory (using offsets
+// relative to the current datapointer location) into instructions. Resets
+// the datapointer offset and offset map.
+//
+// For example these Brainfuck commands:
+// "<<<++>>>--->++><>>+>>>"
+//
+// Would trigger this call:
+// emit_offset_table(
+//    &{{-3, 0x02}, {0, 0xfd}, {1, 0x02}, {2, 0x01}}, &5, code)
+//
+// Which would add these instructions to code:
+// addb [rbx-3],0x02   # Update each memory location with a single instruction.
+// addb [rbx],0xfd
+// addb [rbx+1],0x02
+// addb [rbx+2],0x01
+// add  rbx,2          # Move the data pointer to it's final offset.
+void BrainfuckCompileAndGo::emit_offset_table(
+    map<int8_t, uint8_t>* offset_to_change, int8_t* offset, string *code) {
+  for (auto it = offset_to_change->begin();
+       it != offset_to_change->end();
+       ++it) {
+    int8_t change_offset = it->first;
+    uint8_t change_value = it->second;
+
+    if (change_value == 0) {
+      continue;
+    }
+
+    *code += "\x80\x43";                                  // addb [rbx+XX],YY
+    *code += string(reinterpret_cast<char *>(&change_offset), 1);  // XX
+    *code += string(reinterpret_cast<char *>(&change_value), 1);   // YY
+  }
+
+  if (*offset != 0) {
+    *code += "\x48\x83\xc3";                                // add rbx ...
+    *code += string(reinterpret_cast<char *>(offset), 1);   // ... offset
+    *offset = 0;
+  }
+  offset_to_change->clear();
+}
+
 bool BrainfuckCompileAndGo::generate_sequence_code(string::const_iterator start,
                                                    string::const_iterator end,
                                                    string* code) {
+  int8_t offset = 0;
+  // Maps offset relative to the datapointer into the amount to change it.
+  map<int8_t, uint8_t> offset_to_change;
+
   for (string::const_iterator it = start; it != end; ++it) {
     switch (*it) {
       case '<':
-        generate_left_code(code);
+        --offset;
+        if (offset == 127 || offset == -128) {
+          emit_offset_table(&offset_to_change, &offset, code);
+        }
         break;
       case '>':
-        generate_right_code(code);
+        ++offset;
+        if (offset == 127 || offset == -128) {
+          emit_offset_table(&offset_to_change, &offset, code);
+        }
         break;
       case '-':
-        generate_subtract_code(code);
+        offset_to_change[offset] -= 1;
         break;
       case '+':
-        generate_add_code(code);
+        offset_to_change[offset] += 1;
         break;
       case ',':
+        emit_offset_table(&offset_to_change, &offset, code);
         generate_read_code(code);
         break;
       case '.':
+        emit_offset_table(&offset_to_change, &offset, code);
         generate_write_code(code);
         break;
       case '[':
+        emit_offset_table(&offset_to_change, &offset, code);
         string::const_iterator loop_end;
         if (!find_loop_end(it, end, &loop_end)) {
           fprintf(
@@ -248,6 +266,7 @@ bool BrainfuckCompileAndGo::generate_sequence_code(string::const_iterator start,
         break;
     }
   }
+  emit_offset_table(&offset_to_change, &offset, code);
   return true;
 }
 
