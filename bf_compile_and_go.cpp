@@ -266,6 +266,8 @@ bool BrainfuckCompileAndGo::generate_sequence_code(string::const_iterator start,
         break;
     }
   }
+  // The offset table must be emitted because this function is called
+  // recursively to handle loops.
   emit_offset_table(&offset_to_change, &offset, code);
   return true;
 }
