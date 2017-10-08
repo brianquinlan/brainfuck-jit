@@ -20,6 +20,17 @@ EXECUTABLE_PATH = os.path.join(os.curdir, 'bf')
 
 
 def _check_datapointer_in_range(commands, restore_offset):
+    """Verify that a sequence of brainfuck commands has an offset >= 0.
+
+    Args:
+        commands: The sequence of brainfuck commands e.g. "<>>>+-".
+        restore_offset: A bool indicating whether the memory offset after
+            the given sequence of commands must be exactly zero.
+
+    Raises:
+        AssertionError: if the memory offset of the given commands is negative
+            (or non-zero if restore_offset is True).
+    """
     offset = 0
     for command in commands:
         if command == '<':
